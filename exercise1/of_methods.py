@@ -23,15 +23,15 @@ def lucas_kanade(im1, im2, N):
 
     D = IxIx * IyIy - IxIy ** 2
     T = IxIx + IyIy
-    k = 0.05
-    r = D - k * T
-    r[r >= threshold] = 1
-    r[r < threshold] = 0
+    # k = 0.04
+    # r = D - k * T
+    # r[r >= threshold] = 0
+    # r[r < threshold] = 1
 
-    D[D == 0] = 1000
+    D[D == 0] = 1e20
 
-    U = (IxIy * IyIt - IyIy * IxIt) * r / D
-    V = (IxIy * IxIt - IxIx * IyIt) * r / D
+    U = (IxIy * IyIt - IyIy * IxIt) / D  # * r
+    V = (IxIy * IxIt - IxIx * IyIt) / D  # * r
 
     return U, V
 
