@@ -3,7 +3,14 @@ import math
 import numpy as np
 import cv2
 
-from exercise1.ex1_utils import gausssmooth
+
+def gausssmooth(img, sigma):
+    x = np.array(
+        list(range(math.floor(-3.0 * sigma + 0.5), math.floor(3.0 * sigma + 0.5) + 1))
+    )
+    G = np.exp(-(x ** 2) / (2 * sigma ** 2))
+    G = G / np.sum(G)
+    return cv2.sepFilter2D(img, -1, G, G)
 
 
 def generate_responses_1():
@@ -11,6 +18,7 @@ def generate_responses_1():
     responses[70, 50] = 1
     responses[50, 70] = 0.5
     return gausssmooth(responses, 10)
+
 
 def get_patch(img, center, sz):
     # crop coordinates
@@ -26,17 +34,22 @@ def get_patch(img, center, sz):
 
     # Crop target
     if len(img.shape) > 2:
-        img_crop = img[y0 + y0_pad:y1 - y1_pad, x0 + x0_pad:x1 - x1_pad, :]
+        img_crop = img[y0 + y0_pad : y1 - y1_pad, x0 + x0_pad : x1 - x1_pad, :]
     else:
-        img_crop = img[y0 + y0_pad:y1 - y1_pad, x0 + x0_pad:x1 - x1_pad]
+        img_crop = img[y0 + y0_pad : y1 - y1_pad, x0 + x0_pad : x1 - x1_pad]
 
-    im_crop_padded = cv2.copyMakeBorder(img_crop, y0_pad, y1_pad, x0_pad, x1_pad, cv2.BORDER_REPLICATE)
+    im_crop_padded = cv2.copyMakeBorder(
+        img_crop, y0_pad, y1_pad, x0_pad, x1_pad, cv2.BORDER_REPLICATE
+    )
 
     # crop mask tells which pixels are within the image (1) and which are outside (0)
     m_ = np.ones((img.shape[0], img.shape[1]), dtype=np.float32)
-    crop_mask = m_[y0 + y0_pad:y1 - y1_pad, x0 + x0_pad:x1 - x1_pad]
-    crop_mask = cv2.copyMakeBorder(crop_mask, y0_pad, y1_pad, x0_pad, x1_pad, cv2.BORDER_CONSTANT, value=0)
+    crop_mask = m_[y0 + y0_pad : y1 - y1_pad, x0 + x0_pad : x1 - x1_pad]
+    crop_mask = cv2.copyMakeBorder(
+        crop_mask, y0_pad, y1_pad, x0_pad, x1_pad, cv2.BORDER_CONSTANT, value=0
+    )
     return im_crop_padded, crop_mask
+
 
 def create_epanechnik_kernel(width, height, sigma):
     # make sure that width and height are odd
@@ -47,17 +60,24 @@ def create_epanechnik_kernel(width, height, sigma):
     X = X / np.max(X)
     Y = Y / np.max(Y)
 
-    kernel = (1 - ((X / sigma)**2 + (Y / sigma)**2))
+    kernel = 1 - ((X / sigma) ** 2 + (Y / sigma) ** 2)
     kernel = kernel / np.max(kernel)
-    kernel[kernel<0] = 0
+    kernel[kernel < 0] = 0
     return kernel
+
 
 def extract_histogram(patch, nbins, weights=None):
     # Note: input patch must be a BGR image (3 channel numpy array)
     # convert each pixel intensity to the one of nbins bins
-    channel_bin_idxs = np.floor((patch.astype(np.float32) / float(255)) * float(nbins - 1))
+    channel_bin_idxs = np.floor(
+        (patch.astype(np.float32) / float(255)) * float(nbins - 1)
+    )
     # calculate bin index of a 3D histogram
-    bin_idxs = (channel_bin_idxs[:, :, 0] * nbins**2  + channel_bin_idxs[:, :, 1] * nbins + channel_bin_idxs[:, :, 2]).astype(np.int32)
+    bin_idxs = (
+        channel_bin_idxs[:, :, 0] * nbins ** 2
+        + channel_bin_idxs[:, :, 1] * nbins
+        + channel_bin_idxs[:, :, 2]
+    ).astype(np.int32)
 
     # count bin indices to create histogram (use per-pixel weights if given)
     if weights is not None:
@@ -65,23 +85,33 @@ def extract_histogram(patch, nbins, weights=None):
     else:
         histogram_ = np.bincount(bin_idxs.flatten())
     # zero-pad histogram (needed since bincount function does not generate histogram with nbins**3 elements)
-    histogram = np.zeros((nbins**3, 1), dtype=histogram_.dtype).flatten()
-    histogram[:histogram_.size] = histogram_
+    histogram = np.zeros((nbins ** 3, 1), dtype=histogram_.dtype).flatten()
+    histogram[: histogram_.size] = histogram_
     return histogram
+
 
 def backproject_histogram(patch, histogram, nbins):
     # Note: input patch must be a BGR image (3 channel numpy array)
     # convert each pixel intensity to the one of nbins bins
-    channel_bin_idxs = np.floor((patch.astype(np.float32) / float(255)) * float(nbins - 1))
+    channel_bin_idxs = np.floor(
+        (patch.astype(np.float32) / float(255)) * float(nbins - 1)
+    )
     # calculate bin index of a 3D histogram
-    bin_idxs = (channel_bin_idxs[:, :, 0] * nbins**2  + channel_bin_idxs[:, :, 1] * nbins + channel_bin_idxs[:, :, 2]).astype(np.int32)
+    bin_idxs = (
+        channel_bin_idxs[:, :, 0] * nbins ** 2
+        + channel_bin_idxs[:, :, 1] * nbins
+        + channel_bin_idxs[:, :, 2]
+    ).astype(np.int32)
 
     # use histogram us a lookup table for pixel backprojection
-    backprojection = np.reshape(histogram[bin_idxs.flatten()], (patch.shape[0], patch.shape[1]))
+    backprojection = np.reshape(
+        histogram[bin_idxs.flatten()], (patch.shape[0], patch.shape[1])
+    )
     return backprojection
 
+
 # base class for tracker
-class Tracker():
+class Tracker:
     def __init__(self, params):
         self.parameters = params
 
